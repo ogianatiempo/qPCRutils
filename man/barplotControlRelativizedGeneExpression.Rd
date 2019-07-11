@@ -12,5 +12,6 @@ barplotControlRelativizedGeneExpression(geneDataFrame, labels = F)
 \item{labels}{Whether to include sample labels.}
 }
 \description{
-This function plots relative expression by group relativized to the average value of the control group.
+This function plots relative expression by group relativized to the average
+value of the control group.
 }
