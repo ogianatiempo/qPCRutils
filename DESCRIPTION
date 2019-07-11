@@ -1,0 +1,18 @@
+Package: qPCRutils
+Type: Package
+Title: Useful functions to analyze qPCR results in R
+Version: 0.1.0
+Author: Octavio Gianatiempo
+Maintainer: Octavio Gianatiempo <ogianatiempo@gmail.com>
+Description: A set of useful functions to analyze qPCR results in R that will slowly evolve to a complete package
+License: GNU GPL V3
+Encoding: UTF-8
+LazyData: true
+Imports:
+    dplyr,
+    tidyr,
+    readxl,
+    purrr,
+    ggplot2,
+    magrittr
+RoxygenNote: 6.1.1
