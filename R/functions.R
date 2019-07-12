@@ -125,7 +125,7 @@ boxplotRelativeGeneExpression <- function(geneDataFrame){
       ggplot2::aes(x = Tratamiento, y = relativeExpression)
     ) +
     ggplot2::geom_boxplot() +
-    ggplot2::geom_point() +
+    ggplot2::geom_dotplot(binaxis='y', stackdir='center') +
     ggplot2::scale_x_discrete(limits = c("NP", "LP")) +
     ggplot2::facet_wrap(~Gen, ncol = 4, scales = "free_y")
 }
@@ -150,16 +150,19 @@ barplotRelativeGeneExpression <- function(geneDataFrame){
         fill = Tratamiento)
       ) +
     ggplot2::geom_bar(stat = "identity") +
+    ggplot2::geom_dotplot(
+      data = geneDataFrame,
+      binaxis = "y",
+      stackdir = "center",
+      color = "black",
+      ggplot2::aes(x = Tratamiento, y = relativeExpression)
+    ) +
     ggplot2::geom_errorbar(
       ggplot2::aes(
         ymin = avgRelativeExpression - semRelativeExpression,
         ymax = avgRelativeExpression + semRelativeExpression
       ),
       width = 0.2
-      ) +
-    ggplot2::geom_point(
-      data = geneDataFrame,
-      ggplot2::aes(x = Tratamiento, y = relativeExpression)
     ) +
     ggplot2::scale_x_discrete(limits = c("NP", "LP")) +
     ggplot2::facet_wrap(~Gen, ncol = 5, scales = "free_y") +
@@ -210,14 +213,17 @@ barplotControlRelativizedGeneExpression <- function(geneDataFrame, labels = F){
         color = "red",
         nudge_x = -0.4
       ) +
+      ggplot2::geom_dotplot(
+        data = controlRelativizedGeneDataFrame,
+        binaxis = "y",
+        stackdir = "center",
+        color = "black",
+        ggplot2::aes(x = Tratamiento, y = controlRelativizedExpression)
+      ) +
       ggplot2::geom_errorbar(
         ggplot2::aes(ymin = avgRelativeExpression - semRelativeExpression,
                      ymax = avgRelativeExpression + semRelativeExpression),
         width = 0.2
-      ) +
-      ggplot2::geom_point(
-        data = controlRelativizedGeneDataFrame,
-        ggplot2::aes(x = Tratamiento, y = controlRelativizedExpression)
       ) +
       ggplot2::geom_text(
         data = controlRelativizedGeneDataFrame,
@@ -248,15 +254,18 @@ barplotControlRelativizedGeneExpression <- function(geneDataFrame, labels = F){
         )
       ) +
       ggplot2::geom_bar(stat = "identity") +
+      ggplot2::geom_dotplot(
+        data = controlRelativizedGeneDataFrame,
+        binaxis = "y",
+        stackdir = "center",
+        color = "black",
+        ggplot2::aes(x = Tratamiento, y = controlRelativizedExpression)
+      ) +
       ggplot2::geom_errorbar(
         ggplot2::aes(
           ymin = avgRelativeExpression - semRelativeExpression,
           ymax = avgRelativeExpression + semRelativeExpression),
         width = 0.2
-      ) +
-      ggplot2::geom_point(
-        data = controlRelativizedGeneDataFrame,
-        ggplot2::aes(x = Tratamiento, y = controlRelativizedExpression)
       ) +
       ggplot2::scale_x_discrete(limits = c("NP", "LP")) +
       ggplot2::facet_wrap(~Gen, ncol = 4) +
