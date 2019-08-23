@@ -9,6 +9,7 @@ License: GNU GPL V3
 Encoding: UTF-8
 LazyData: true
 Imports:
+    rlang,
     dplyr,
     tidyr,
     readxl,

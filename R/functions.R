@@ -275,3 +275,113 @@ barplotControlRelativizedGeneExpression <- function(geneDataFrame, labels = F){
   }
 
 }
+
+
+#' testGene
+#'
+#' This function test for significant differences in expression between
+#' two groups for a single gene within a relativeExpression dataframe.
+#' @param relativeExpDF Dataframe with gene relative expression information.
+#' @param groupCol Grouping column to be used for difference testing.
+#' @param geneCol Column containing gene names.
+#' @param expressionCol Column containing relative expression.
+#' @param gene Gene to test.
+#' @param alternative Alternative hypothesis for the test
+#' ("two.sided", "greater" or "less").
+#' @importFrom magrittr %>%
+#' @export
+testGene <- function(relativeExpDF, groupCol, geneCol, expressionCol, gene, alternative = "two.sided") {
+
+  groups <- unique(
+    relativeExpDF %>%
+      dplyr::filter({{geneCol}} == gene) %>%
+      dplyr::select({{groupCol}}) %>%
+      dplyr::pull()
+  )
+
+
+  if (length(groups) > 2) {
+    return("more than two groups")
+  } else{
+    n1 <- relativeExpDF %>%
+      dplyr::filter({{groupCol}} == groups[1], {{geneCol}} == gene) %>%
+      dplyr::count() %>%
+      dplyr::pull()
+
+    n2 <- relativeExpDF %>%
+      dplyr::filter({{groupCol}} == groups[2], {{geneCol}} == gene) %>%
+      dplyr::count() %>%
+      dplyr::pull()
+
+    s1 <- relativeExpDF %>%
+      dplyr::filter({{groupCol}} == groups[1], {{geneCol}} == gene) %>%
+      dplyr::select({{expressionCol}}) %>%
+      dplyr::pull() %>%
+      stats::shapiro.test()
+
+    s2 <- relativeExpDF %>%
+      dplyr::filter({{groupCol}} == groups[2], {{geneCol}} == gene) %>%
+      dplyr::select({{expressionCol}}) %>%
+      dplyr::pull() %>%
+      stats::shapiro.test()
+
+
+    if (s1$p.value >= 0.5 & s2$p.value >= 0.5){
+      # Data meets normality
+      var <- stats::var.test(
+        relativeExpDF %>%
+          dplyr::filter({{groupCol}} == groups[1], {{geneCol}} == gene) %>%
+          dplyr::select({{expressionCol}}) %>%
+          dplyr::pull(),
+        relativeExpDF %>%
+          dplyr::filter({{groupCol}} == groups[2], {{geneCol}} == gene) %>%
+          dplyr::select({{expressionCol}}) %>%
+          dplyr::pull()
+      )
+
+      test <- stats::t.test(
+        relativeExpDF %>%
+          dplyr::filter({{groupCol}} == groups[1], {{geneCol}} == gene) %>%
+          dplyr::select({{expressionCol}}) %>%
+          dplyr::pull(),
+        relativeExpDF %>%
+          dplyr::filter({{groupCol}} == groups[2], {{geneCol}} == gene) %>%
+          dplyr::select({{expressionCol}}) %>%
+          dplyr::pull(),
+        var.equal = (var$p.value>=0.5),
+        alternative = alternative
+        )
+
+    } else {
+      # Data doesn't meet normality
+      var <- c(method = "", p.value = NA)
+
+      test <- stats::wilcox.test(
+        relativeExpDF %>%
+          dplyr::filter({{groupCol}} == groups[1], {{geneCol}} == gene) %>%
+          dplyr::select({{expressionCol}}) %>%
+          dplyr::pull(),
+        relativeExpDF %>%
+          dplyr::filter({{groupCol}} == groups[2], {{geneCol}} == gene) %>%
+          dplyr::select({{expressionCol}}) %>%
+          dplyr::pull(),
+        alternative = alternative
+      )
+    }
+
+    return(
+      c(
+        g1 = groups[1],
+        n1 = n1,
+        g2 = groups[2],
+        n2 = n2,
+        norMethod = s1$method,
+        nor1 = s1$p.value,
+        nor2 = s2$p.value,
+        varMethod = var$method,
+        var = var$p.value,
+        testMethod = test$method,
+        test = test$p.value)
+    )
+  }
+}
