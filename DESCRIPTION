@@ -15,5 +15,6 @@ Imports:
     readxl,
     purrr,
     ggplot2,
-    magrittr
+    magrittr,
+    outliers
 RoxygenNote: 6.1.1

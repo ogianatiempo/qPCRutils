@@ -276,6 +276,143 @@ barplotControlRelativizedGeneExpression <- function(geneDataFrame, labels = F){
 
 }
 
+#' filterOutliers
+#'
+#' This function removes outliers in two groups for a single gene within a
+#' relativeExpression dataframe.
+#' @param relativeExpDF Dataframe with gene relative expression information.
+#' @param groupCol Grouping column to be used for difference testing.
+#' @param geneCol Column containing gene names.
+#' @param expressionCol Column containing relative expression.
+#' @param gene Gene to test.
+#' @param controlGroup Name of the control group.
+#' @param treatedGroup Name of the treated group.
+#' ("two.sided", "greater" or "less").
+#' @importFrom magrittr %>%
+#' @export
+filterOutliers <- function(relativeExpDF, groupCol, geneCol, expressionCol, gene, controlGroup, treatedGroup) {
+  tControlMax <- relativeExpDF %>%
+    dplyr::filter({{geneCol}} == gene, {{groupCol}} == controlGroup) %>%
+    dplyr::select({{expressionCol}}) %>%
+    dplyr::pull() %>%
+    outliers::grubbs.test(opposite = F)
+
+  tControlMin <- relativeExpDF %>%
+    dplyr::filter({{geneCol}} == gene, {{groupCol}} == controlGroup) %>%
+    dplyr::select({{expressionCol}}) %>%
+    dplyr::pull() %>%
+    outliers::grubbs.test(opposite = T)
+
+  if(tControlMax$p.value < tControlMin$p.value & tControlMax$p.value < 0.05) {
+    # Filtro max
+    outlierC <- relativeExpDF %>%
+      dplyr::filter({{geneCol}} == gene, {{groupCol}} == controlGroup) %>%
+      dplyr::arrange(desc({{expressionCol}})) %>%
+      head(1)
+
+    max <- relativeExpDF %>%
+      dplyr::filter({{geneCol}} == gene, {{groupCol}} == controlGroup) %>%
+      dplyr::arrange(desc({{expressionCol}})) %>%
+      dplyr::select({{expressionCol}}) %>%
+      utils::head(1) %>%
+      dplyr::pull()
+
+    relativeExpDF <- relativeExpDF %>%
+      dplyr::filter(
+        {{geneCol}} != gene |
+        {{groupCol}} != controlGroup |
+        {{expressionCol}} != max
+    )
+  } else if(tControlMin$p.value < tControlMax$p.value & tControlMin$p.value < 0.05) {
+    # Filtro min
+    outlierC <- relativeExpDF %>%
+      dplyr::filter({{geneCol}} == gene, {{groupCol}} == controlGroup) %>%
+      dplyr::arrange({{expressionCol}}) %>%
+      head(1)
+
+    min <- relativeExpDF %>%
+      dplyr::filter({{geneCol}} == gene, {{groupCol}} == controlGroup) %>%
+      dplyr::arrange({{expressionCol}}) %>%
+      dplyr::select({{expressionCol}}) %>%
+      utils::head(1) %>%
+      dplyr::pull()
+
+    relativeExpDF <- relativeExpDF %>%
+      dplyr::filter(
+        {{geneCol}} != gene |
+        {{groupCol}} != controlGroup |
+        {{expressionCol}} != min
+      )
+  }
+
+  tTreatedMax <- relativeExpDF %>%
+    dplyr::filter({{geneCol}} == gene, {{groupCol}} == treatedGroup) %>%
+    dplyr::select({{expressionCol}}) %>%
+    dplyr::pull() %>%
+    outliers::grubbs.test(opposite = F)
+
+  tTreatedMin <- relativeExpDF %>%
+    dplyr::filter({{geneCol}} == gene, {{groupCol}} == treatedGroup) %>%
+    dplyr::select({{expressionCol}}) %>%
+    dplyr::pull() %>%
+    outliers::grubbs.test(opposite = T)
+
+  if(tTreatedMax$p.value < tTreatedMin$p.value & tTreatedMax$p.value < 0.05) {
+    # Filter max
+    outlierT <- relativeExpDF %>%
+      dplyr::filter({{geneCol}} == gene, {{groupCol}} == treatedGroup) %>%
+      dplyr::arrange(desc({{expressionCol}})) %>%
+      head(1)
+
+    max <- relativeExpDF %>%
+      dplyr::filter({{geneCol}} == gene, {{groupCol}} == treatedGroup) %>%
+      dplyr::arrange(desc({{expressionCol}})) %>%
+      dplyr::select({{expressionCol}}) %>%
+      utils::head(1) %>%
+      dplyr::pull()
+
+    relativeExpDF <- relativeExpDF %>%
+      dplyr::filter(
+        {{geneCol}} != gene |
+        {{groupCol}} != treatedGroup |
+        {{expressionCol}} != max
+      )
+  } else if(tTreatedMin$p.value < tTreatedMax$p.value & tTreatedMin$p.value < 0.05) {
+    # Filter min
+    outlierT <- relativeExpDF %>%
+      dplyr::filter({{geneCol}} == gene, {{groupCol}} == treatedGroup) %>%
+      dplyr::arrange({{expressionCol}}) %>%
+      head(1)
+
+    min <- relativeExpDF %>%
+      dplyr::filter({{geneCol}} == gene, {{groupCol}} == treatedGroup) %>%
+      dplyr::arrange({{expressionCol}}) %>%
+      dplyr::select({{expressionCol}}) %>%
+      utils::head(1) %>%
+      dplyr::pull()
+
+    relativeExpDF <- relativeExpDF %>%
+      dplyr::filter(
+        {{geneCol}} != gene |
+        {{groupCol}} != treatedGroup |
+        {{expressionCol}} != min
+      )
+  }
+
+  # print outliers
+  if(base::exists("outlierC") | base::exists("outlierT")) {
+    print("Outliers:")
+    if (base::exists("outlierC")) {
+      print(outlierC)
+    }
+    if (base::exists("outlierT")) {
+      print(outlierT)
+    }
+  }
+
+  # returns filtered DF
+  return(relativeExpDF)
+}
 
 #' testGene
 #'
@@ -287,10 +424,14 @@ barplotControlRelativizedGeneExpression <- function(geneDataFrame, labels = F){
 #' @param expressionCol Column containing relative expression.
 #' @param gene Gene to test.
 #' @param alternative Alternative hypothesis for the test
+#' @param filterOutliers Whether to remove outliers or not. Only one outlier per
+#' group based on Grubb's test.
+#' @param controlGroup Name of the control group.
+#' @param treatedGroup Name of the treated group.
 #' ("two.sided", "greater" or "less").
 #' @importFrom magrittr %>%
 #' @export
-testGene <- function(relativeExpDF, groupCol, geneCol, expressionCol, gene, alternative = "two.sided") {
+testGene <- function(relativeExpDF, groupCol, geneCol, expressionCol, gene, alternative = "two.sided", filterOutliers = T, controlGroup, treatedGroup) {
 
   groups <- unique(
     relativeExpDF %>%
@@ -302,86 +443,293 @@ testGene <- function(relativeExpDF, groupCol, geneCol, expressionCol, gene, alte
 
   if (length(groups) > 2) {
     return("more than two groups")
-  } else{
-    n1 <- relativeExpDF %>%
-      dplyr::filter({{groupCol}} == groups[1], {{geneCol}} == gene) %>%
-      dplyr::count() %>%
-      dplyr::pull()
+  }
 
-    n2 <- relativeExpDF %>%
-      dplyr::filter({{groupCol}} == groups[2], {{geneCol}} == gene) %>%
-      dplyr::count() %>%
-      dplyr::pull()
-
-    s1 <- relativeExpDF %>%
-      dplyr::filter({{groupCol}} == groups[1], {{geneCol}} == gene) %>%
-      dplyr::select({{expressionCol}}) %>%
-      dplyr::pull() %>%
-      stats::shapiro.test()
-
-    s2 <- relativeExpDF %>%
-      dplyr::filter({{groupCol}} == groups[2], {{geneCol}} == gene) %>%
-      dplyr::select({{expressionCol}}) %>%
-      dplyr::pull() %>%
-      stats::shapiro.test()
-
-
-    if (s1$p.value >= 0.5 & s2$p.value >= 0.5){
-      # Data meets normality
-      var <- stats::var.test(
-        relativeExpDF %>%
-          dplyr::filter({{groupCol}} == groups[1], {{geneCol}} == gene) %>%
-          dplyr::select({{expressionCol}}) %>%
-          dplyr::pull(),
-        relativeExpDF %>%
-          dplyr::filter({{groupCol}} == groups[2], {{geneCol}} == gene) %>%
-          dplyr::select({{expressionCol}}) %>%
-          dplyr::pull()
-      )
-
-      test <- stats::t.test(
-        relativeExpDF %>%
-          dplyr::filter({{groupCol}} == groups[1], {{geneCol}} == gene) %>%
-          dplyr::select({{expressionCol}}) %>%
-          dplyr::pull(),
-        relativeExpDF %>%
-          dplyr::filter({{groupCol}} == groups[2], {{geneCol}} == gene) %>%
-          dplyr::select({{expressionCol}}) %>%
-          dplyr::pull(),
-        var.equal = (var$p.value>=0.5),
-        alternative = alternative
-        )
-
-    } else {
-      # Data doesn't meet normality
-      var <- c(method = "", p.value = NA)
-
-      test <- stats::wilcox.test(
-        relativeExpDF %>%
-          dplyr::filter({{groupCol}} == groups[1], {{geneCol}} == gene) %>%
-          dplyr::select({{expressionCol}}) %>%
-          dplyr::pull(),
-        relativeExpDF %>%
-          dplyr::filter({{groupCol}} == groups[2], {{geneCol}} == gene) %>%
-          dplyr::select({{expressionCol}}) %>%
-          dplyr::pull(),
-        alternative = alternative
-      )
-    }
-
-    return(
-      c(
-        g1 = groups[1],
-        n1 = n1,
-        g2 = groups[2],
-        n2 = n2,
-        norMethod = s1$method,
-        nor1 = s1$p.value,
-        nor2 = s2$p.value,
-        varMethod = var$method,
-        var = var$p.value,
-        testMethod = test$method,
-        test = test$p.value)
+  if (filterOutliers) {
+    relativeExpDF <- filterOutliers(
+      relativeExpDF = relativeExpDF,
+      groupCol = {{groupCol}},
+      geneCol = {{geneCol}},
+      expressionCol = {{expressionCol}},
+      gene = gene,
+      controlGroup = controlGroup,
+      treatedGroup = treatedGroup
     )
   }
+
+  n1 <- relativeExpDF %>%
+    dplyr::filter({{groupCol}} == controlGroup, {{geneCol}} == gene) %>%
+    dplyr::count() %>%
+    dplyr::pull()
+
+  n2 <- relativeExpDF %>%
+    dplyr::filter({{groupCol}} == treatedGroup, {{geneCol}} == gene) %>%
+    dplyr::count() %>%
+    dplyr::pull()
+
+  s1 <- relativeExpDF %>%
+    dplyr::filter({{groupCol}} == controlGroup, {{geneCol}} == gene) %>%
+    dplyr::select({{expressionCol}}) %>%
+    dplyr::pull() %>%
+    stats::shapiro.test()
+
+  s2 <- relativeExpDF %>%
+    dplyr::filter({{groupCol}} == treatedGroup, {{geneCol}} == gene) %>%
+    dplyr::select({{expressionCol}}) %>%
+    dplyr::pull() %>%
+    stats::shapiro.test()
+
+
+  if (s1$p.value >= 0.05 & s2$p.value >= 0.05){
+    # Data meets normality
+    var <- stats::var.test(
+      relativeExpDF %>%
+        dplyr::filter({{groupCol}} == controlGroup, {{geneCol}} == gene) %>%
+        dplyr::select({{expressionCol}}) %>%
+        dplyr::pull(),
+      relativeExpDF %>%
+        dplyr::filter({{groupCol}} == treatedGroup, {{geneCol}} == gene) %>%
+        dplyr::select({{expressionCol}}) %>%
+        dplyr::pull()
+    )
+
+    test <- stats::t.test(
+      relativeExpDF %>%
+        dplyr::filter({{groupCol}} == treatedGroup, {{geneCol}} == gene) %>%
+        dplyr::select({{expressionCol}}) %>%
+        dplyr::pull(),
+      relativeExpDF %>%
+        dplyr::filter({{groupCol}} == controlGroup, {{geneCol}} == gene) %>%
+        dplyr::select({{expressionCol}}) %>%
+        dplyr::pull(),
+      var.equal = (var$p.value>=0.05),
+      alternative = alternative
+      )
+  } else {
+
+    test <- stats::wilcox.test(
+      relativeExpDF %>%
+        dplyr::filter({{groupCol}} == treatedGroup, {{geneCol}} == gene) %>%
+        dplyr::select({{expressionCol}}) %>%
+        dplyr::pull(),
+      relativeExpDF %>%
+        dplyr::filter({{groupCol}} == controlGroup, {{geneCol}} == gene) %>%
+        dplyr::select({{expressionCol}}) %>%
+        dplyr::pull(),
+      alternative = alternative
+    )
+    var <- list(p.value = NA, method = "")
+  }
+
+  if(substr(test$method,1,1) == " ") {
+    test$method = substr(test$method,2,nchar(test$method))
+  }
+
+  return(
+    list(
+      g1 = controlGroup,
+      n1 = n1,
+      g2 = treatedGroup,
+      n2 = n2,
+      norMethod = s1$method,
+      nor1 = s1$p.value,
+      nor2 = s2$p.value,
+      varMethod = var$method,
+      var = var$p.value,
+      testMethod = test$method,
+      test = test$p.value,
+      alternative = alternative
+    )
+  )
+}
+
+#' plotGene
+#'
+#' This function plots a bar and dots graph for a single gene
+#' comparing two groups using the testGene function.
+#' @param relativeExpDF Dataframe with gene relative expression information.
+#' @param groupCol Grouping column to be used for difference testing.
+#' @param geneCol Column containing gene names.
+#' @param expressionCol Column containing relative expression.
+#' @param gene Gene to test.
+#' @param alternative Alternative hypothesis for the test
+#' ("two.sided", "greater" or "less").
+#' @param filterOutliers Whether to remove outliers or not. Only one outlier per
+#' group based on Grubb's test.
+#' @param controlRelativized Display expression relativized to control group
+#' (i.e. control group mean expression = 1)
+#' @param controlGroup Name of the control group.
+#' @param treatedGroup Name of the treated group.
+#' @param maxY Upper limit of y axis.
+#' @importFrom magrittr %>%
+#' @importFrom rlang :=
+#' @export
+plotGene <- function(relativeExpDF, groupCol, geneCol, expressionCol, gene, alternative = "two.sided", filterOutliers = T, controlRelativized = F, controlGroup, treatedGroup, maxY = 2) {
+  groups <- unique(
+    relativeExpDF %>%
+      dplyr::filter({{geneCol}} == gene) %>%
+      dplyr::select({{groupCol}}) %>%
+      dplyr::pull()
+  )
+
+  if (length(groups) > 2) {
+    return("more than two groups")
+  }
+
+  relativeExpDF <- relativeExpDF %>%
+    dplyr::filter({{geneCol}} == gene) %>%
+    dplyr::ungroup()
+
+  if (filterOutliers) {
+    relativeExpDF <- filterOutliers(
+      relativeExpDF = relativeExpDF,
+      groupCol = {{groupCol}},
+      geneCol = {{geneCol}},
+      expressionCol = {{expressionCol}},
+      gene = gene,
+      controlGroup = controlGroup,
+      treatedGroup = treatedGroup
+    )
+  }
+
+  testResult <- testGene(
+    relativeExpDF = relativeExpDF,
+    groupCol = {{groupCol}},
+    geneCol = {{geneCol}},
+    expressionCol = {{expressionCol}},
+    gene = gene,
+    alternative = alternative,
+    filterOutliers = F,
+    controlGroup = controlGroup,
+    treatedGroup = treatedGroup
+  )
+
+  if (controlRelativized) {
+    controlMeanExpression <- relativeExpDF %>%
+      dplyr::filter({{groupCol}} == controlGroup) %>%
+      dplyr::select({{expressionCol}}) %>%
+      dplyr::pull() %>%
+      base::mean()
+
+    relativeExpDF <- relativeExpDF %>%
+      dplyr::mutate(
+        {{expressionCol}} := {{expressionCol}} / controlMeanExpression
+      )
+  }
+
+  plot <- relativeExpDF %>%
+    dplyr::group_by({{groupCol}}) %>%
+    dplyr::summarize(
+      avgRelativeExpression = mean({{expressionCol}}),
+      semRelativeExpression = stats::sd({{expressionCol}}) / base::sqrt(dplyr::n())
+    ) %>%
+    ggplot2::ggplot(
+      ggplot2::aes(
+        x = {{groupCol}},
+        y = avgRelativeExpression
+      )
+    ) +
+    ggplot2::geom_bar(stat = "identity", color = "black", alpha = 0, width = .75) +
+    ggplot2::geom_dotplot(
+      data = relativeExpDF,
+      method = "histodot",
+      binaxis = "y",
+      stackdir = "center",
+      binwidth = 0.05,
+      dotsize = 1,
+      alpha = 0.75,
+      ggplot2::aes(
+        x = {{groupCol}},
+        y = {{expressionCol}},
+        fill = {{groupCol}},
+        color = {{groupCol}}
+      )
+    ) +
+    ggplot2::geom_errorbar(
+      ggplot2::aes(
+        ymin = avgRelativeExpression - semRelativeExpression,
+        ymax = avgRelativeExpression + semRelativeExpression),
+      width = 0.2
+    ) +
+    ggplot2::scale_y_continuous(
+      expand = ggplot2::expand_scale(add = c(0, .1)),
+      limits = c(0, maxY)
+    ) +
+    ggplot2::scale_x_discrete(
+      limits = c(controlGroup, treatedGroup),
+      labels = c(
+        base::paste0(controlGroup, "\n(n = ", testResult$n1, ")"),
+        base::paste0(treatedGroup, "\n(n = ", testResult$n2, ")")
+      )
+    ) +
+    ggplot2::theme_minimal() +
+    ggplot2::theme(
+      legend.position = "none",
+      axis.line = ggplot2::element_line()
+    ) +
+    ggplot2::ylab("Relative Expression") +
+    ggplot2::xlab("Treatment")
+
+  if(testResult$alternative == "greater"){
+    alternative = base::paste(treatedGroup, "greater than", controlGroup)
+  } else if(testResult$alternative == "less") {
+    alternative = base::paste(treatedGroup, "less than", controlGroup)
+  } else {
+    alternative = base::paste(treatedGroup, "different than", controlGroup)
+  }
+
+  maxExp <- relativeExpDF %>%
+    dplyr::select({{expressionCol}}) %>%
+    dplyr::pull() %>%
+    base::max()
+
+  if (base::signif(testResult$test < 0.001, 2)) {
+    plot <- plot +
+      ggplot2::ggtitle(
+        label = gene,
+        subtitle = base::paste0(
+          testResult$testMethod,
+          ": p < 0.001\nH\u2090 : ",
+          alternative
+        )
+      ) +
+      ggplot2::annotate("text",x = 1.5,y = maxExp * 1.1, label="***", size = 8)
+  } else if (base::signif(testResult$test < 0.01, 2)) {
+    plot <- plot +
+      ggplot2::ggtitle(
+        label = gene,
+        subtitle = base::paste0(
+          testResult$testMethod,
+          ": p < 0.01\nH\u2090 : ",
+          alternative
+        )
+      ) +
+      ggplot2::annotate("text",x = 1.5,y = maxExp * 1.1, label="**", size = 8)
+  } else if (base::signif(testResult$test < 0.05, 2)) {
+    plot <- plot +
+      ggplot2::ggtitle(
+        label = gene,
+        subtitle = base::paste0(
+          testResult$testMethod,
+          ": p = ",
+          base::signif(testResult$test, 2),
+          "\nH\u2090 : ",
+          alternative
+        )
+      ) +
+      ggplot2::annotate("text",x = 1.5,y = maxExp * 1.1, label="*", size = 8)
+  } else {
+    plot <- plot +
+      ggplot2::ggtitle(
+        label = gene,
+        subtitle = base::paste0(
+          testResult$testMethod,
+          ": p = ",
+          base::signif(testResult$test, 2),
+          "\nH\u2090 : ",
+          alternative
+        )
+      )
+  }
+  return(plot)
 }
